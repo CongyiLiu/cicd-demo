@@ -8,5 +8,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: true,
+    // e2eディレクトリはPlaywrightが担当するため除外
+    exclude: ['e2e/**', 'node_modules/**'],
   },
 })

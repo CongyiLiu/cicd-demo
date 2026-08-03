@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
 import TaskForm from '../components/TaskForm.vue'
 import * as api from '../api/tasks'
 
@@ -19,6 +19,7 @@ describe('TaskForm', () => {
     const wrapper = mount(TaskForm)
     await wrapper.find('[data-testid="task-input"]').setValue('新しいタスク')
     await wrapper.find('[data-testid="task-form"]').trigger('submit')
+    await flushPromises()
 
     expect(api.createTask).toHaveBeenCalledWith('新しいタスク')
     // 送信後に入力欄がクリアされること
