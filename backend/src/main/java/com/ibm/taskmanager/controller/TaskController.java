@@ -11,7 +11,6 @@ import java.util.List;
 // タスク管理REST APIコントローラー
 @RestController
 @RequestMapping("/api")
-@CrossOrigin(origins = "*")
 public class TaskController {
 
     private final TaskService taskService;
