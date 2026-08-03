@@ -1,0 +1,7 @@
+# アプリケーション設定
+server:
+  port: 8080
+
+spring:
+  application:
+    name: task-manager

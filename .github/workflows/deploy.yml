@@ -1,0 +1,85 @@
+# mainブランチへのマージ時に自動デプロイするワークフロー
+name: CD - 自動デプロイ
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  # バックエンドをVPS（Docker）にデプロイ
+  deploy-backend:
+    name: バックエンド デプロイ → VPS
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SSHでVPSに接続してデプロイ実行
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # 最新コードをVPSに取得（初回はclone、以降はpull）
+            if [ ! -d /opt/cicd-demo ]; then
+              git clone https://github.com/${{ github.repository }} /opt/cicd-demo
+            fi
+            cd /opt/cicd-demo
+            git pull origin main
+
+            # Dockerイメージをビルド
+            docker build -t task-manager-backend ./backend
+
+            # 旧コンテナを停止・削除して新しいコンテナを起動
+            docker stop task-manager-backend 2>/dev/null || true
+            docker rm   task-manager-backend 2>/dev/null || true
+            docker run -d \
+              --name task-manager-backend \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              task-manager-backend
+
+            echo "デプロイ完了: $(date)"
+
+  # フロントエンドをGitHub Pagesにデプロイ
+  deploy-frontend:
+    name: フロントエンド デプロイ → GitHub Pages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Node.js 20 セットアップ
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: 依存関係のインストール
+        run: cd frontend && npm ci
+
+      - name: Vite ビルド（本番用）
+        run: cd frontend && npm run build
+        env:
+          # GitHub PagesのサブパスとVPS APIのURLを設定
+          VITE_BASE_URL: /${{ github.event.repository.name }}/
+          VITE_API_URL: http://${{ secrets.VPS_HOST }}:8080
+
+      - name: GitHub Pages の設定
+        uses: actions/configure-pages@v5
+
+      - name: ビルド成果物をアップロード
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+      - name: GitHub Pages にデプロイ
+        id: deployment
+        uses: actions/deploy-pages@v4

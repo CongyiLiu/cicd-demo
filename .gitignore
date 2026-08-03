@@ -1,0 +1,25 @@
+# Java / Maven
+target/
+*.class
+*.jar
+
+# Node.js
+node_modules/
+dist/
+
+# テストレポート
+playwright-report/
+test-results/
+
+# 環境設定（ローカル上書き用）
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
