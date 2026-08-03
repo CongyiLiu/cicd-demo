@@ -21,7 +21,22 @@ jobs:
           cache: maven
 
       - name: Maven ビルドとテスト実行
-        run: cd backend && mvn test
+        run: cd backend && mvn test -Dmaven.surefire.report.plugins=org.apache.maven.plugins:maven-surefire-report-plugin
+
+      - name: テストレポートのアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-surefire-report
+          path: backend/target/surefire-reports/
+
+      - name: テスト結果を発行
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: バックエンド テスト結果
+          path: 'backend/target/surefire-reports/*.xml'
+          reporter: 'java-junit'
 
   # フロントエンドの単体テスト
   frontend-test:
@@ -41,7 +56,20 @@ jobs:
         run: cd frontend && npm ci
 
       - name: Vitest 単体テスト実行
-        run: cd frontend && npm test
+        run: cd frontend && npm test -- --reporter=verbose
+
+      - name: Vitest HTML レポート生成
+        if: always()
+        run: cd frontend && npm test -- --reporter=html --outputFile=vitest-report.html
+
+      - name: テストレポートのアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-vitest-report
+          path: |
+            frontend/vitest-report.html
+            frontend/coverage/
 
   # E2Eテスト（バックエンドとフロントエンドを起動して実行）
   e2e-test:
@@ -82,3 +110,49 @@ jobs:
         with:
           name: playwright-report
           path: frontend/playwright-report/
+
+      - name: E2Eテスト結果を発行
+        if: always()
+        uses: dorny/test-reporter@v1
+        with:
+          name: E2E テスト結果 (Playwright)
+          path: 'frontend/playwright-report/results.json'
+          reporter: 'jest-junit'
+          fail-on-error: false
+
+  # テスト結果サマリーをPRコメントに投稿
+  test-summary:
+    name: テスト結果サマリー
+    runs-on: ubuntu-latest
+    needs: [backend-test, frontend-test, e2e-test]
+    if: always()
+    steps:
+      - name: テスト結果をPRコメントに投稿
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          script: |
+            const backend = ${{ needs.backend-test.result == 'success' }};
+            const frontend = ${{ needs.frontend-test.result == 'success' }};
+            const e2e = ${{ needs.e2e-test.result == 'success' }};
+
+            const status = backend && frontend && e2e ? '✅ すべてのテストが合格しました' : '❌ テストが失敗しました';
+            
+            const comment = `## テスト実行結果
+
+${status}
+
+| テスト項目 | 状態 |
+|---------|------|
+| バックエンド (JUnit 5) | ${backend ? '✅ 合格' : '❌ 失敗'} |
+| フロントエンド (Vitest) | ${frontend ? '✅ 合格' : '❌ 失敗'} |
+| E2E (Playwright) | ${e2e ? '✅ 合格' : '❌ 失敗'} |
+
+> 詳細なテストレポートは **Artifacts** タブでダウンロードできます`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
