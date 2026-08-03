@@ -70,7 +70,7 @@ jobs:
         env:
           # GitHub PagesのサブパスとVPS APIのURLを設定
           VITE_BASE_URL: /${{ github.event.repository.name }}/
-          VITE_API_URL: http://${{ secrets.VPS_HOST }}:8080
+          VITE_API_URL: https://${{ secrets.VPS_HOST }}.sslip.io
 
       - name: GitHub Pages の設定
         uses: actions/configure-pages@v5
